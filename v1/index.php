@@ -7593,16 +7593,99 @@ $app->get('/usersList', 'authenticatedefault', function() use ($app){
    echoRespnse(200, $response);
 });
 
-$app->get('/chatMenus', 'authenticatedefault', function() use ($app){
+$app->post('/chatMenus', 'authenticatedefault', function() use ($app){
 
-   $response = array();
-   $db = new DbHandler();
-   $result = $db->getChatMenus();
+   	$json = $app->request->getBody();
+    $data = json_decode($json, true);
+    $result = implode(',',$data);         
+    $response = array();
+
+    $db = new DbHandler();
+    $user_id = $data['user_id'];
+   	$result = $db->getChatMenus($user_id);
 
    $response['status'] = $result['status'];
    $response['menus'] = $result['menus'];
 
    echoRespnse(200, $response);
+});
+
+$app->post('/chatDataByUserId', 'authenticatedefault', function() use ($app) 
+{         
+
+      $json = $app->request->getBody();
+      $data = json_decode($json, true);
+      $result = implode(',',$data);         
+      $response = array();
+
+      $db = new DbHandler();
+      $user_id = $data['user_id'];
+      
+      $result = $db->getChatDataByUserId($user_id);
+      
+      $response['status'] = $result['status'];
+      $response['user'] = $result['user'];
+
+      
+      echoRespnse(200, $response);
+});
+
+$app->post('/userDataByChatId', 'authenticatedefault', function() use ($app) 
+{         
+
+      $json = $app->request->getBody();
+      $data = json_decode($json, true);
+      $result = implode(',',$data);         
+      $response = array();
+
+      $db = new DbHandler();
+      $chat_id = $data['chat_id'];
+      
+      $result = $db->getUserDataByChatId($chat_id);
+      
+      $response['status'] = $result['status'];
+      $response['chat'] = $result['chat'];
+
+      
+      echoRespnse(200, $response);
+});
+
+$app->post('/saveUserChat', 'authenticatedefault', function() use ($app) 
+{         
+
+      $json = $app->request->getBody();
+      $data = json_decode($json, true);
+      $result = implode(',',$data);         
+      $response = array();
+      $db = new DbHandler();      
+      $result = $db->saveUserChat($data);
+      
+      $response['status'] = $result['status'];
+      $response['message'] = $result['message'];
+
+      
+      echoRespnse(200, $response);
+});
+
+$app->post('/userChatData', 'authenticatedefault', function() use ($app) 
+{        
+
+      $json = $app->request->getBody();
+      $data = json_decode($json, true);
+      $result = implode(',',$data);         
+      $response = array();
+      $db = new DbHandler();
+
+      $req = $app->request;
+      $base_url = $req->getUrl()."".$req->getRootUri()."/";
+
+      $result = $db->getUserChatData($data,$base_url);
+      
+      $response['status'] = $result['status'];
+      $response['userChat'] = $result['userChat'];
+
+      
+      echoRespnse(200, $response);
 });
 
 /*----------------------END API's---------------------------------------*/

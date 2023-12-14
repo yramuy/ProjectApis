@@ -19940,7 +19940,7 @@ LEFT JOIN erp_subunit as dep on dep.id=emp.work_station  WHERE(DATEDIFF(SYSDATE(
 		return $data;
     }
 
-    function getChatMenus() {
+    function getChatMenus($user_id) {
 
     	$data = array();
 
@@ -19956,7 +19956,7 @@ LEFT JOIN erp_subunit as dep on dep.id=emp.work_station  WHERE(DATEDIFF(SYSDATE(
 
 				$data['id'] = $row['id'];
 				$data['name'] = $row['name'];
-				$data['sub_menus'] = $this->getSubMenusById($row['id']);
+				$data['sub_menus'] = $this->getSubMenusById($row['id'],$user_id);
 				$data1[] = $data;
 
 
@@ -19975,11 +19975,99 @@ LEFT JOIN erp_subunit as dep on dep.id=emp.work_station  WHERE(DATEDIFF(SYSDATE(
 		return $data;
     }
 
-    function getSubMenusById($id) {
+    function getChatDataByUserId($id) {
+
+    	$data = array();
+
+    	$query = "SELECT * FROM `tbl_chat_sub_menus` WHERE user_id = $id";
+
+		$sql = mysqli_query($this->conn, $query);
+
+		if(mysqli_num_rows($sql) > 0) {
+
+			$row = mysqli_fetch_assoc($sql);
+
+			do {
+
+				$data['id'] = $row['id'];
+				$data['chat_type_id'] = $row['chat_type_id'];
+				$data1[] = $data;
+
+			}while($row = mysqli_fetch_assoc($sql));
+				$data['status'] = 1;
+				$data['user'] = $data1;						
+				
+
+		}else{
+
+			$data['status'] = 0;
+			$data['user'] = array();
+
+		}
+
+		return $data;
+    }
+
+    function getUserDataByChatId($id) {
+
+    	$data = array();
+
+    	$query = "SELECT s.*,s.user_id,concat(e.emp_firstname,' ',e.emp_lastname) as fullName FROM tbl_chat_sub_menus s 
+    			LEFT JOIN erp_user u ON s.user_id = u.id 
+    			LEFT JOIN hs_hr_employee e ON u.emp_number = e.emp_number
+    			WHERE s.id = $id";
+
+		$sql = mysqli_query($this->conn, $query);
+
+		if(mysqli_num_rows($sql) > 0) {
+
+			$row = mysqli_fetch_assoc($sql);
+
+			do {
+
+				$data['id'] = $row['id'];
+				$data['chat_type_id'] = $row['chat_type_id'];
+				$data['user_id'] = $row['user_id'];
+				if ($row['chat_type_id'] == 1) {
+					$data['fullName'] = $row['name'];
+				}else {
+					$data['fullName'] = $row['fullName'];
+				}
+				
+				$data1[] = $data;
+
+			}while($row = mysqli_fetch_assoc($sql));
+				$data['status'] = 1;
+				$data['chat'] = $data1;						
+				
+
+		}else{
+
+			$data['status'] = 0;
+			$data['chat'] = array();
+
+		}
+
+		return $data;
+    }
+
+    function getSubMenusById($id,$user_id) {
 
     	$data1 = array();
 
-    	$query = "SELECT s.chat_type_id,s.name,s.id,u.id as userId,u.user_name FROM tbl_chat_sub_menus s LEFT JOIN erp_user u ON s.user_id = u.id WHERE chat_type_id = $id";
+    	$query = "SELECT s.chat_type_id,s.name,s.id,u.id as userId,u.user_name,concat(e.emp_firstname,' ',e.emp_lastname) as fullName FROM tbl_chat_sub_menus s 
+    			LEFT JOIN erp_user u ON s.user_id = u.id 
+    			LEFT JOIN hs_hr_employee e ON u.emp_number = e.emp_number";
+
+		    if($id == 1){
+		    	$query .= " LEFT JOIN tbl_user_group_chat ugc ON ugc.chat_sub_menu_id = s.id";
+		    }
+
+		    $query .= " WHERE s.chat_type_id = $id";
+
+		    if($id == 1){
+		    	$query .= " AND ugc.user_id = $user_id";
+		    }
 
 		$sql = mysqli_query($this->conn, $query);
 
@@ -19994,7 +20082,7 @@ LEFT JOIN erp_subunit as dep on dep.id=emp.work_station  WHERE(DATEDIFF(SYSDATE(
 				if($row['chat_type_id'] == 1){
 					$data['sub_menu'] = $row['name'];
 				}else{
-					$data['sub_menu'] = $row['user_name'];
+					$data['sub_menu'] = $row['fullName'];
 				}
 
 				$data1[] = $data;
@@ -20003,6 +20091,94 @@ LEFT JOIN erp_subunit as dep on dep.id=emp.work_station  WHERE(DATEDIFF(SYSDATE(
 		}
 
 		return $data1;
+    }
+
+    function saveUserChat($data) {
+
+    	$output = array();
+    	$time = date('h:i:s');
+    	$date = date('Y-m-d');
+
+    	$query = "INSERT INTO tbl_user_chats(sender,receiver_chat_id,receiver,message,chat_time,chat_date) VALUES(?,?,?,?,?,?)";
+    	if ($stmt = mysqli_prepare($this->conn, $query)) {
+
+    		mysqli_stmt_bind_param($stmt, 'iiisss', $data['sender_id'],$data['chat_id'],$data['receiver_id'],$data['message'],$time,$date);
+    		if(mysqli_stmt_execute($stmt)){
+    			$output['status'] = 1;
+    			$output['message'] = 'Success';
+    		}else {
+    			$output['status'] = 0;
+    			$output['message'] = 'Failed';
+    		}
+    	}else {
+    			$output['status'] = 0;
+    			$output['message'] = 'Failed';
+    	}    	
+
+    	return $output;
+    }
+
+    function getUserChatData($data,$path) {
+
+    	$output = array();
+    	$senderId = $data['senderId'];
+    	$receiverId = $data['receiverId'];
+    	$menuId = $data['menuId'];
+    	$subMenuId = $data['subMenuId'];
+
+    	$query = "SELECT uc.*,u.user_name,concat(e.emp_firstname,' ',e.emp_lastname) as full_name,e.emp_number FROM tbl_user_chats uc 
+					LEFT JOIN erp_user u ON u.id = uc.sender
+					LEFT JOIN hs_hr_employee e ON e.emp_number = u.emp_number";
+					
+		if ($menuId != 1) {
+
+			$query .= " WHERE (uc.sender = '".$senderId."' AND uc.receiver = '".$receiverId."') OR (uc.receiver = '".$senderId."' AND uc.sender = '".$receiverId."')";
+
+		} else{
+			$query .= " WHERE uc.receiver_chat_id = '".$subMenuId."'";
+		}
+
+		$sql = mysqli_query($this->conn, $query);
+
+		if (mysqli_num_rows($sql) > 0) {
+
+			while ($row = mysqli_fetch_assoc($sql)){
+
+				$output['id'] = $row['id'];
+				$output['sender'] = $row['sender'];
+				$output['receiver_chat_id'] = $row['receiver_chat_id'];
+				$output['receiver'] = $row['receiver'];
+				$output['message'] = $row['message'];
+				$output['chat_time'] = $row['chat_time'];
+				$output['chat_date'] = $row['chat_date'];
+				$output['user_name'] = $row['user_name'];
+				$output['full_name'] = $row['full_name'];
+				$emp_number = $row['emp_number'];
+
+				$query3 ="SELECT epic_picture FROM hs_hr_emp_picture WHERE emp_number = $emp_number";
+				$count=mysqli_query($this->conn, $query3);
+				if(mysqli_num_rows($count) > 0)
+				{
+					$row1=mysqli_fetch_assoc($count);
+					$value = $path.'get_image.php?id='.$emp_number;
+					$output['image'] = $value;
+				}else{
+					$value = $path.'default-photo.png';
+					$output['image'] = $value;
+				}
+
+				$output1[] = $output;
+			}
+
+			$output['status'] = 1;
+			$output['userChat'] = $output1;
+
+		}else {
+			$output['status'] = 0;
+			$output['userChat'] = array();
+		}
+
+		return $output;
     }
 
 	/* ------------------------------ END API's-----------------------*/
